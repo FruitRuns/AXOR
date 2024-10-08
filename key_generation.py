@@ -8,7 +8,7 @@ def generate_keys():
     for pub_k in range(0, len(public_key)):
         for priv_k in range(0, len(public_key)):
             pub_priv_out[pub_k] += ((public_key[pub_k]&private_key[priv_k]).bit_count()%2)*(2**priv_k)
-    return pub_key, priv_key, out_key
+    return public_key, private_key, pub_priv_out
 
 def encrypt(n, public_key, out_key):
     # Encrypt 5 for example :V
