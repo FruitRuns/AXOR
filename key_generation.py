@@ -28,10 +28,10 @@ def decrypt(public_key, private_key, n):
     # Server generates actual out bits for key given to decode data XOR'd in
     out = 0
     for priv_k in range(0, len(public_key)):
-        out += ((pub_key&private_key[priv_k]).bit_count()%2)*(2**priv_k)
+        out += ((public_key&private_key[priv_k]).bit_count()%2)*(2**priv_k)
         
     # Decrypting for the server is as simple as
-    return pub_priv_key ^ out
+    return n ^ out
 # As seen in output whatever you XOR up to 2^(n) is secure but you always get a number out beyond (just not all bits are encrypted)
 # this algorithm provides 2^(n-1) security
 
