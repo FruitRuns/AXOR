@@ -5,3 +5,25 @@ AXOR is an asymmetric encryption algorithm, which is defined as an algorithm whe
 AXOR is unique in the way that it does not use complicated mathematics which is generally overwhelming for beginners, the aim of AXOR is not the be the fastest or most light weight algorithm, rather it aims to be the simplest asymmetric algorithm.
 
 The goal of the repository is to provide working code examples of AXOR in different programming languages and to explain the algorithm as efficiently as possible.
+
+## Test (Python)
+
+```bash
+if [[ "$(./key_generation.py)" == "5" ]]
+then
+  echo PASS
+else
+  echo FAIL;
+fi
+```
+
+## Test (Rust)
+
+```bash
+if [[ "$(cargo run -q)" == "5" ]]
+then
+  echo PASS
+else
+  echo FAIL;
+fi
+```

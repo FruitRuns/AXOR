@@ -1,0 +1,11 @@
+[package]
+name = "AXOR"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "*"
+
+[[bin]]
+name = "key_generation"
+path = "key_generation.rs"
