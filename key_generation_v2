@@ -12,8 +12,11 @@ import random
 import hashlib
 from Crypto.Cipher import ChaCha20
 
+global bit_level
+bit_level = 63
+
 def XOR_layer_gen():
-    XOR_keys_pub = [random.randint(0, 2**63-1) for i in range(8)] # Kept secret by server
+    XOR_keys_pub = [random.randint(0, 2**bit_level-1) for _ in range(8)] # Kept secret by server
     # Create XOR layer combinations
     for key in XOR_keys_pub:
         for key2 in XOR_keys_pub:
@@ -23,8 +26,6 @@ def XOR_layer_gen():
 
 # Generates the keys
 def generate_keys():
-    bit_level = 63
-
     # Only server has this
     public_key_overlay = [2**i for i in range(bit_level)]
 
