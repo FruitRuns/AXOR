@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""
+This version of the algorithm has been found vulnerable to RREF and can be
+solved in polynomial time please do not use this version.
+Please use the versions where a XOR layer is applied. 
+"""
+
 import random
 
 
