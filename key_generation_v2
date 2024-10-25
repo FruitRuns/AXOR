@@ -9,16 +9,17 @@ The server can then easily figure out which rows were XOR together transmitting 
 """
 
 import random
+import hashlib
+from Crypto.Cipher import ChaCha20
 
-XOR_keys_pub = [random.randint(0, 2**63-1) for i in range(6)] # Kept secret by server
-
-# Create XOR layer combinations
-for key in XOR_keys_pub:
-    for key2 in XOR_keys_pub:
-        XOR_keys_pub.append(key^key2)
-        XOR_keys_pub = list(set(XOR_keys_pub))
-print(len(XOR_keys_pub))
-print(XOR_keys_pub)
+def XOR_layer_gen():
+    XOR_keys_pub = [random.randint(0, 2**63-1) for i in range(8)] # Kept secret by server
+    # Create XOR layer combinations
+    for key in XOR_keys_pub:
+        for key2 in XOR_keys_pub:
+            XOR_keys_pub.append(key^key2)
+            XOR_keys_pub = list(set(XOR_keys_pub))
+    return XOR_keys_pub
 
 # Generates the keys
 def generate_keys():
@@ -80,7 +81,15 @@ def remove_layer(pub_key, out_key, try_me):
     return pub_key, out_key
 
 def main():
+    plaintext = b'Lorem ipsum dolor sit'
+    h = hashlib.new('sha256')
+    h.update(str(5).encode())
+    secret = h.digest()
+    cipher = ChaCha20.new(key=secret)
+    msg = cipher.nonce + cipher.encrypt(plaintext)
+    print(msg)
     pub_key, priv_key, out_key = generate_keys()
+    XOR_keys_pub = XOR_layer_gen()
     # After random XOR layer applied key made public
     pub_key, out_key = apply_layer(pub_key, out_key, XOR_keys_pub)
 
@@ -90,16 +99,23 @@ def main():
     for key in XOR_keys_pub:
         key_part2, out_part2 = remove_layer(key_part, out_part, key)
         output = decrypt(priv_key, key_part2, out_part2)
-        # Should be 5
         print(output)
         print(bin(output))
-        if output == 5:
-            # The result should be 5 in real world this will be verified by successfully decrypting something
-            # Symmetric to verify
-            print("Success")
+
+        # Create a hash for output as password
+        h = hashlib.new('sha256')
+        h.update(str(output).encode())
+        print(h.digest())
+        msg_nonce = msg[:8]
+        ciphertext = msg[8:]
+        h = hashlib.new('sha256')
+        h.update(str(output).encode())
+        cipher = ChaCha20.new(key=h.digest(), nonce=msg_nonce)
+        plaintext = cipher.decrypt(ciphertext)
+        print(plaintext)
+        if plaintext == b'Lorem ipsum dolor sit':
+            print("Success key established")
             exit()
-        else:
-            print("Fail retrying with next random XOR key")
 
 if __name__ == "__main__":
     main()
