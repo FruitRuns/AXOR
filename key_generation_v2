@@ -1,0 +1,72 @@
+import random
+
+XOR_keys_pub = [random.randint(0, 2**63-1) for i in range(6)] # Kept secret by server
+
+for key in XOR_keys_pub: # Create XOR layer combinations
+    for key2 in XOR_keys_pub:
+        XOR_keys_pub.append(key^key2)
+        XOR_keys_pub = list(set(XOR_keys_pub))
+print(len(XOR_keys_pub))
+print(XOR_keys_pub)
+
+def generate_keys(): # Generates the keys
+    bit_level = 63
+    public_key_overlay = [2**i for i in range(bit_level)]
+    public_key = [random.randint(0, 2**bit_level-1) for i in range(bit_level)] # client & server have this
+    private_key = [random.randint(0, 2**bit_level-1) for i in range(bit_level)] # Only server has this
+    pub_priv_out = [0 for i in range(bit_level)] # client & server have this
+    for pub_k in range(0, len(public_key)):
+        for priv_k in range(0, len(public_key)):
+            pub_priv_out[pub_k] += ((public_key[pub_k]&private_key[priv_k]).bit_count()%2)*(2**priv_k)
+    for i in range(len(public_key)): # Potentially insecure because predictable true layer (probably safe - future me)
+        pub_priv_out[i] = pub_priv_out[i] ^ public_key_overlay[i]
+    return public_key, private_key, pub_priv_out
+
+def encrypt(n, public_key, out_key):
+    public_key = public_key[n] ^ public_key[0] # Hardcoded in to give 5 this should not be done in real implementations
+    out_key = out_key[n] ^ out_key[0]
+    return public_key, out_key
+
+# Remove pub private layer of encryption
+def decrypt(private_key, key, data): # Server generates actual out bits for key given to decode data XOR'd in
+    out = 0
+    for priv_k in range(0, len(private_key)):
+        out += ((key&private_key[priv_k]).bit_count()%2)*(2**priv_k)
+    return data ^ out # Decrypting for the server is as simple as
+
+def apply_layer(pub_key, out_key, XOR_keys_pub): # Only server runs this
+    for key_i in range(len(pub_key)):
+        rand_num = random.randint(0, len(XOR_keys_pub)-1)
+        pub_key[key_i] = pub_key[key_i] ^ XOR_keys_pub[rand_num]
+        out_key[key_i] = out_key[key_i] ^ XOR_keys_pub[rand_num]
+    return pub_key, out_key
+
+def remove_layer(pub_key, out_key, try_me): # Only server runs this
+    pub_key = pub_key ^ try_me
+    out_key = out_key ^ try_me
+    return pub_key, out_key
+
+
+if __name__ == "__main__":
+    pub_key, priv_key, out_key = generate_keys()
+    pub_key, out_key = apply_layer(pub_key, out_key, XOR_keys_pub) # After layer applied key made public
+    key_part, out_part = encrypt(2, pub_key, out_key)
+    for key in XOR_keys_pub:
+        key_part2, out_part2 = remove_layer(key_part, out_part, key)
+        output = decrypt(priv_key, key_part2, out_part2)
+        print(output) # Should be 5
+        if output == 5:
+            # The result should be 5 in real world this will be verified by successfully decrypting something
+            # Symmetric to verify
+            print("Success")
+            exit()
+        print(bin(output))
+
+"""
+By doing it this way you can basically take an identity matrix and have them XOR it without the consequence
+of having to check 2^256 keys as the server, if it was done any other way it would be infeasible.
+By applying my algorithm you can turn an identity matrix into noise which is linearly solvable and then apply seemingly
+random XOR's ontop of it to make it unsolvable which is an epic prank but technically it is still a identity matrix
+just you can't actually see the matrix and, therefore, you can not solve it without lots of computations :D
+The server can then easily figure out which rows were XOR'd transmitting data.
+"""
