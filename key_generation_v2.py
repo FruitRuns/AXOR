@@ -15,19 +15,20 @@ from Crypto.Cipher import ChaCha20
 global bit_level
 bit_level = 63
 
-def XOR_layer_gen():
-    XOR_keys_pub = [random.randint(0, 2**bit_level-1) for _ in range(8)] # Kept secret by server
+def xor_layer_gen() -> list[int]:
+    xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(8)] # Kept secret by server
     # Create XOR layer combinations
-    for key in XOR_keys_pub:
-        for key2 in XOR_keys_pub:
-            XOR_keys_pub.append(key^key2)
-            XOR_keys_pub = list(set(XOR_keys_pub))
-    return XOR_keys_pub
+    for key in xor_keys_private:
+        for key2 in xor_keys_private:
+            xor_keys_private.append(key^key2)
+            # Remove duplicates
+            xor_keys_private = list(set(xor_keys_private))
+    return xor_keys_private
 
 # Generates the keys
-def generate_keys():
+def generate_keys() -> tuple[list[int], list[int], list[int]]:
     # Only server has this
-    public_key_overlay = [2**i for i in range(bit_level)]
+    identity_matrix = [2**i for i in range(bit_level)]
 
     # client & server have this
     public_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
@@ -36,9 +37,9 @@ def generate_keys():
     private_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
 
     # client & server have this
-    pub_priv_out = [
+    out_key = [
         sum(
-            (public_key[i] & private_key[j]).bit_count() % 2 * (2 ** j)
+            (((public_key[i] & private_key[j]).bit_count()) % 2) * (2 ** j)
             for j in range(bit_level)
         )
         for i in range(bit_level)
@@ -46,77 +47,87 @@ def generate_keys():
 
     # Potentially insecure because predictable true layer (probably safe - future me)
     for i in range(len(public_key)):
-        pub_priv_out[i] = pub_priv_out[i] ^ public_key_overlay[i]
+        out_key[i] = out_key[i] ^ identity_matrix[i]
 
-    return public_key, private_key, pub_priv_out
+    return public_key, private_key, out_key
 
-def encrypt(n, public_key, out_key):
-    # Hardcoded in to give 5 this should not be done in real implementations
-    public_key = public_key[n] ^ public_key[0]
-    out_key = out_key[n] ^ out_key[0]
-    return public_key, out_key
+def encrypt(n, public_key, out_key) -> tuple[int, int]:
+    # Encrypts n
+    key_part, out_part = 0, 0
+    n = list(bin(n).replace("0b", ""))
+    n.reverse()
+    for i in range(len(n)):
+        if n[i] == "1":
+            key_part = key_part ^ public_key[i]
+            out_part = out_part ^ out_key[i]
+    return key_part, out_part
 
 # Remove pub private layer of encryption
-def decrypt(private_key, key, data):
+def decrypt(private_key, key_part_2, out_part_2) -> int:
     # Server generates actual out bits for key given to decode data XOR in
     out = sum(
-        ((key & private_key[i]).bit_count() % 2) * (2 ** i)
+        (((key_part_2 & private_key[i]).bit_count()) % 2) * (2 ** i)
         for i in range(len(private_key))
     )
 
     # Decrypting for the server is as simple as
-    return data ^ out
+    return out_part_2 ^ out
 
 # Only server runs this
-def apply_layer(pub_key, out_key, XOR_keys_pub):
-    for key_i in range(len(pub_key)):
-        rand_num = random.randint(0, len(XOR_keys_pub)-1)
-        pub_key[key_i] = pub_key[key_i] ^ XOR_keys_pub[rand_num]
-        out_key[key_i] = out_key[key_i] ^ XOR_keys_pub[rand_num]
-    return pub_key, out_key
+def apply_layer(public_key, out_key, xor_keys_pub) -> tuple[int, int]:
+    for key_i in range(len(public_key)):
+        rand_num = random.randint(0, len(xor_keys_pub) - 1)
+        public_key[key_i] = public_key[key_i] ^ xor_keys_pub[rand_num]
+        out_key[key_i] = out_key[key_i] ^ xor_keys_pub[rand_num]
+    return public_key, out_key
 
 # Only server runs this
-def remove_layer(pub_key, out_key, try_me):
-    pub_key = pub_key ^ try_me
-    out_key = out_key ^ try_me
-    return pub_key, out_key
+def remove_layer(key_part, out_part, key) -> tuple[int, int]:
+    key_part = key_part ^ key
+    out_part = out_part ^ key
+    return key_part, out_part
 
-def main():
-    plaintext = b'Lorem ipsum dolor sit'
+# Both run this
+def generate_sha256_hash_digest(password_number) -> bytes:
     h = hashlib.new('sha256')
-    h.update(str(5).encode())
+    h.update(str(password_number).encode())
     secret = h.digest()
+    return secret
+
+# Strictly used to test the library
+def main():
+    plaintext = b'Lorem ipsum dolor sit amet'
+    # sha256 is used to generate 32 byte password for chacha
+    password_number = random.randint(0, 2**bit_level-1)
+    secret = generate_sha256_hash_digest(password_number)
     cipher = ChaCha20.new(key=secret)
     msg = cipher.nonce + cipher.encrypt(plaintext)
     print(msg)
-    pub_key, priv_key, out_key = generate_keys()
-    XOR_keys_pub = XOR_layer_gen()
+    public_key, private_key, out_key = generate_keys()
+    xor_keys_private = xor_layer_gen()
     # After random XOR layer applied key made public
-    pub_key, out_key = apply_layer(pub_key, out_key, XOR_keys_pub)
-
-    key_part, out_part = encrypt(2, pub_key, out_key)
+    public_key, out_key = apply_layer(public_key, out_key, xor_keys_private)
+    key_part, out_part = encrypt(password_number, public_key, out_key)
 
     # Try each possible key known by server to get past random XOR layer
-    for key in XOR_keys_pub:
-        key_part2, out_part2 = remove_layer(key_part, out_part, key)
-        output = decrypt(priv_key, key_part2, out_part2)
+    # The layer is applied to stop anyone other than the server reconstructing the original matrix (not identity matrix)
+    for key in xor_keys_private:
+        key_part_2, out_part_2 = remove_layer(key_part, out_part, key)
+        output = decrypt(private_key, key_part_2, out_part_2)
         print(output)
         print(bin(output))
 
         # Create a hash for output as password
-        h = hashlib.new('sha256')
-        h.update(str(output).encode())
-        print(h.digest())
         msg_nonce = msg[:8]
         ciphertext = msg[8:]
-        h = hashlib.new('sha256')
-        h.update(str(output).encode())
-        cipher = ChaCha20.new(key=h.digest(), nonce=msg_nonce)
+        cipher = ChaCha20.new(key=generate_sha256_hash_digest(output), nonce=msg_nonce)
         plaintext = cipher.decrypt(ciphertext)
         print(plaintext)
-        if plaintext == b'Lorem ipsum dolor sit':
+        if plaintext == b'Lorem ipsum dolor sit amet':
             print("Success key established")
             exit()
+    else:
+        print("Failure key not established")
 
 if __name__ == "__main__":
     main()
