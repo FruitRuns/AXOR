@@ -28,7 +28,7 @@ def xor_layer_gen() -> list[int]:
 # Generates the keys
 def generate_keys() -> tuple[list[int], list[int], list[int]]:
     # Only server has this
-    identity_matrix = [2**i for i in range(bit_level)]
+    identity_matrix = [2 ** i for i in range(bit_level)]
 
     # client & server have this
     public_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
