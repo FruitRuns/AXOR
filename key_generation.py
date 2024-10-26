@@ -6,12 +6,11 @@ Please use the versions where an XOR layer is applied.
 """
 
 import random
-
+global bit_level
+bit_level = 63
 
 # Generates the keys
 def generate_keys():
-    bit_level = 63
-
     # client & server have this
     public_key = [random.randint(0, 2**bit_level - 1) for _ in range(bit_level)]
 
