@@ -6,6 +6,9 @@ By applying my algorithm you can turn an identity matrix into noise which is lin
 random XOR's ontop of it to make it unsolvable which is an epic prank, but it is still an identity matrix
 just you can not actually see the matrix and, therefore, you can not solve it without lots of computations :D
 The server can then easily figure out which rows were XOR together transmitting data.
+
+To help understand this program think of key_key as the public key and out_out as the public key
+where key_key is the key and out_out is the value in a hashset
 """
 
 import random
@@ -13,10 +16,17 @@ import hashlib
 from Crypto.Cipher import ChaCha20
 
 global bit_level
-bit_level = 63
+bit_level = 256
 
 def xor_layer_gen() -> list[int]:
-    xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(8)] # Kept secret by server
+    """
+    Under no circumstances use a range of 1 as this is vulnerable to XOR cross out attacks
+    With 2 there is no way of knowing for sure if you have a cancelled out part and therefore no way of making a matrix
+    which is solvable without the same amount of computations if not more as a brute force attack
+
+    have fun guessing the xor number lol
+    """
+    xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(2)] # Kept secret by server
     # Create XOR layer combinations
     for key in xor_keys_private:
         for key2 in xor_keys_private:
@@ -31,7 +41,7 @@ def generate_keys() -> tuple[list[int], list[int], list[int]]:
     identity_matrix = [2 ** i for i in range(bit_level)]
 
     # client & server have this
-    public_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
+    key_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
 
     # Only server has this
     private_key = [random.randint(0, 2 ** bit_level - 1) for _ in range(bit_level)]
@@ -39,26 +49,26 @@ def generate_keys() -> tuple[list[int], list[int], list[int]]:
     # client & server have this
     out_key = [
         sum(
-            (((public_key[i] & private_key[j]).bit_count()) % 2) * (2 ** j)
+            (((key_key[i] & private_key[j]).bit_count()) % 2) * (2 ** j)
             for j in range(bit_level)
         )
         for i in range(bit_level)
     ]
 
     # Potentially insecure because predictable true layer (probably safe - future me)
-    for i in range(len(public_key)):
+    for i in range(len(key_key)):
         out_key[i] = out_key[i] ^ identity_matrix[i]
 
-    return public_key, private_key, out_key
+    return key_key, private_key, out_key
 
-def encrypt(n, public_key, out_key) -> tuple[int, int]:
+def encrypt(n, key_key, out_key) -> tuple[int, int]:
     # Encrypts n
     key_part, out_part = 0, 0
     n = list(bin(n).replace("0b", ""))
     n.reverse()
     for i in range(len(n)):
         if n[i] == "1":
-            key_part = key_part ^ public_key[i]
+            key_part = key_part ^ key_key[i]
             out_part = out_part ^ out_key[i]
     return key_part, out_part
 
@@ -74,12 +84,12 @@ def decrypt(private_key, key_part_2, out_part_2) -> int:
     return out_part_2 ^ out
 
 # Only server runs this
-def apply_layer(public_key, out_key, xor_keys_pub) -> tuple[int, int]:
-    for key_i in range(len(public_key)):
+def apply_layer(key_key, out_key, xor_keys_pub) -> tuple[int, int]:
+    for key_i in range(len(key_key)):
         rand_num = random.randint(0, len(xor_keys_pub) - 1)
-        public_key[key_i] = public_key[key_i] ^ xor_keys_pub[rand_num]
+        key_key[key_i] = key_key[key_i] ^ xor_keys_pub[rand_num]
         out_key[key_i] = out_key[key_i] ^ xor_keys_pub[rand_num]
-    return public_key, out_key
+    return key_key, out_key
 
 # Only server runs this
 def remove_layer(key_part, out_part, key) -> tuple[int, int]:
@@ -95,19 +105,20 @@ def generate_sha256_hash_digest(password_number) -> bytes:
     return secret
 
 # Strictly used to test the library
+# Use as reference for building network server and client
 def main():
     plaintext = b'Lorem ipsum dolor sit amet'
     # sha256 is used to generate 32 byte password for chacha
     password_number = random.randint(0, 2**bit_level-1)
     secret = generate_sha256_hash_digest(password_number)
     cipher = ChaCha20.new(key=secret)
-    msg = cipher.nonce + cipher.encrypt(plaintext)
-    print(msg)
-    public_key, private_key, out_key = generate_keys()
+    msg_encrypted = cipher.nonce + cipher.encrypt(plaintext)
+    print(msg_encrypted)
+    key_key, private_key, out_key = generate_keys()
     xor_keys_private = xor_layer_gen()
     # After random XOR layer applied key made public
-    public_key, out_key = apply_layer(public_key, out_key, xor_keys_private)
-    key_part, out_part = encrypt(password_number, public_key, out_key)
+    key_key, out_key = apply_layer(key_key, out_key, xor_keys_private)
+    key_part, out_part = encrypt(password_number, key_key, out_key)
 
     # Try each possible key known by server to get past random XOR layer
     # The layer is applied to stop anyone other than the server reconstructing the original matrix (not identity matrix)
@@ -118,8 +129,8 @@ def main():
         print(bin(output))
 
         # Create a hash for output as password
-        msg_nonce = msg[:8]
-        ciphertext = msg[8:]
+        msg_nonce = msg_encrypted[:8]
+        ciphertext = msg_encrypted[8:]
         cipher = ChaCha20.new(key=generate_sha256_hash_digest(output), nonce=msg_nonce)
         plaintext = cipher.decrypt(ciphertext)
         print(plaintext)
