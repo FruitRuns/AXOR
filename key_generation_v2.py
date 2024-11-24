@@ -26,7 +26,7 @@ def xor_layer_gen() -> list[int]:
 
     have fun guessing the xor number lol
     """
-    xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(2)] # Kept secret by server
+    xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(1)] # Kept secret by server
     # Create XOR layer combinations
     for key in xor_keys_private:
         for key2 in xor_keys_private:
