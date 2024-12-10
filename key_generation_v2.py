@@ -19,13 +19,6 @@ global bit_level
 bit_level = 256
 
 def xor_layer_gen() -> list[int]:
-    """
-    Under no circumstances use a range of 1 as this is vulnerable to XOR cross out attacks
-    With 2 there is no way of knowing for sure if you have a cancelled out part and therefore no way of making a matrix
-    which is solvable without the same amount of computations if not more as a brute force attack
-
-    have fun guessing the xor number lol
-    """
     xor_keys_private = [random.randint(0, 2 ** bit_level - 1) for _ in range(1)] # Kept secret by server
     # Create XOR layer combinations
     for key in xor_keys_private:
@@ -86,9 +79,9 @@ def decrypt(private_key, key_part_2, out_part_2) -> int:
 # Only server runs this
 def apply_layer(key_key, out_key, xor_keys_pub) -> tuple[int, int]:
     for key_i in range(len(key_key)):
-        rand_num = random.randint(0, len(xor_keys_pub) - 1)
-        key_key[key_i] = key_key[key_i] ^ xor_keys_pub[rand_num]
-        out_key[key_i] = out_key[key_i] ^ xor_keys_pub[rand_num]
+        if random.randint(0, 1) == 1:
+            key_key[key_i] = key_key[key_i] ^ xor_keys_pub[0]
+            out_key[key_i] = out_key[key_i] ^ xor_keys_pub[0]
     return key_key, out_key
 
 # Only server runs this
